@@ -180,35 +180,39 @@ class Shrinker(object):
 
     """
 
-    # Shrink passes that are always safe to run. These mostly have time
-    # complexity that is at most O(n log(n)) in the size of the underlying
-    # buffer. pass_to_descendant is an exception in that it technically
-    # has worst case complexity O(n^2), but it is rare for it to hit
-    # that case and generally runs very few operations at all.
-    DEFAULT_PASSES = [
-        "alphabet_minimize",
-        "pass_to_descendant",
-        "zero_examples",
-        "adaptive_example_deletion",
-        "reorder_examples",
-        "minimize_duplicated_blocks",
-        "minimize_individual_blocks",
-    ]
+    def default_passes(self):
+        """Shrink passes that are always safe to run. These mostly have time
+        complexity that is at most O(n log(n)) in the size of the underlying
+        buffer. pass_to_descendant is an exception in that it technically
+        has worst case complexity O(n^2), but it is rare for it to hit
+        that case and generally runs very few operations at all.
+        """
+        return [
+            "alphabet_minimize",
+            "pass_to_descendant",
+            "zero_examples",
+            "adaptive_example_deletion",
+            "reorder_examples",
+            "minimize_duplicated_blocks",
+            "minimize_individual_blocks",
+        ]
 
-    # Emergency passes are ones that we hope don't do anything
-    # very useful. The ideal scenario is that we run all of our
-    # default passes to a fixed point, then we run all of the
-    # emergency passes and they do nothing and we're finished.
-    # This is because they're either a bit weird and designed to
-    # handle some special case that doesn't come up very often,
-    # or because they're very expensive, or both.
-    EMERGENCY_PASSES = [
-        block_program("-XX"),
-        block_program("XX"),
-        "example_deletion_with_block_lowering",
-        "shrink_offset_pairs",
-        "minimize_block_pairs_retaining_sum",
-    ]
+    def emergency_passes(self):
+        """Emergency passes are ones that we hope don't do anything
+        very useful. The ideal scenario is that we run all of our
+        default passes to a fixed point, then we run all of the
+        emergency passes and they do nothing and we're finished.
+        This is because they're either a bit weird and designed to
+        handle some special case that doesn't come up very often,
+        or because they're very expensive, or both.
+        """
+        return [
+            block_program("-XX"),
+            block_program("XX"),
+            "example_deletion_with_block_lowering",
+            "shrink_offset_pairs",
+            "minimize_block_pairs_retaining_sum",
+        ]
 
     def __init__(self, engine, initial, predicate):
         """Create a shrinker for a particular engine, with a given starting
@@ -246,10 +250,10 @@ class Shrinker(object):
         self.passes_by_name = {}
         self.clear_passes()
 
-        for p in Shrinker.DEFAULT_PASSES:
+        for p in self.default_passes():
             self.add_new_pass(p)
 
-        for p in Shrinker.EMERGENCY_PASSES:
+        for p in self.emergency_passes():
             self.add_new_pass(p, classification=PassClassification.AVOID)
 
         self.add_new_pass(
@@ -271,8 +275,10 @@ class Shrinker(object):
 
         self.known_programs = set()
 
-    def add_new_pass(self, run, classification=PassClassification.CANDIDATE):
+    def add_new_pass(self, run, classification=None):
         """Creates a shrink pass corresponding to calling ``run(self)``"""
+        if classification is None:
+            classification = PassClassification.CANDIDATE
         if isinstance(run, str):
             run = getattr(Shrinker, run)
         p = ShrinkPass(
