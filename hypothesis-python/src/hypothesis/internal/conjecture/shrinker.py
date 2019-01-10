@@ -1148,31 +1148,39 @@ class Shrinker(object):
         example and every block not inside that example it tries deleting the
         example and modifying the block's value by one in either direction.
         """
-        i = 0
-        while i < len(self.shrink_target.blocks):
-            if not self.is_shrinking_block(i):
-                i += 1
-                continue
+        example_index = 0
 
-            u, v = self.blocks[i].bounds
-
-            j = 0
-            while j < len(self.shrink_target.examples):
+        while True:
+            any_examples_checked = False
+            i = 0
+            while i < len(self.shrink_target.blocks):
+                u, v = self.blocks[i].bounds
                 n = int_from_bytes(self.shrink_target.buffer[u:v])
-                if n == 0:
-                    break
-                ex = self.shrink_target.examples[j]
-                if ex.start < v or ex.length == 0:
-                    j += 1
+
+                if n == 0 or not self.is_shrinking_block(i):
+                    i += 1
                     continue
 
-                buf = bytearray(self.shrink_target.buffer)
-                buf[u:v] = int_to_bytes(n - 1, v - u)
-                del buf[ex.start : ex.end]
-                if not self.incorporate_new_buffer(buf):
-                    j += 1
-
-            i += 1
+                examples = [
+                    ex
+                    for ex in self.shrink_target.examples
+                    if ex.start >= v and ex.length > 0
+                ]
+                examples.sort(key=lambda ex: ex.depth)
+                changed = False
+                if example_index < len(examples):
+                    any_examples_checked = True
+                    ex = examples[example_index]
+                    buf = bytearray(self.shrink_target.buffer)
+                    buf[u:v] = int_to_bytes(n - 1, v - u)
+                    del buf[ex.start : ex.end]
+                    if self.incorporate_new_buffer(buf):
+                        changed = True
+                if not changed:
+                    i += 1
+            if not any_examples_checked:
+                break
+            example_index += 1
 
     def minimize_block_pairs_retaining_sum(self):
         """This pass minimizes pairs of blocks subject to the constraint that
